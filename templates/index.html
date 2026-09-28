@@ -1,0 +1,133 @@
+{% extends 'base.html' %}
+{% block title %}Overview{% endblock %}
+{% block breadcrumb %}Overview{% endblock %}
+{% block content %}
+<section class="page-heading heading-row">
+    <div>
+        <p class="eyebrow">MONDAY MORNING, MADE SIMPLE</p>
+        <h1>Your classroom at a glance<span class="heading-period">.</span></h1>
+        <p class="page-subtitle">A clear picture of who's here, who's away, and how the week is going.</p>
+    </div>
+    <a class="button button-primary" href="{{ url_for('attendance') }}"><svg viewBox="0 0 24 24">
+            <path d="M8 3v4m8-4v4M4 9h16M5 5h14a1 1 0 0 1 1 1v13H4V6a1 1 0 0 1 1-1Z" />
+            <path d="m9 14 2 2 4-4" />
+        </svg>Take attendance</a>
+</section>
+<section class="stats-grid" aria-label="Today's attendance summary">
+    <article class="stat-card">
+        <div class="stat-top"><span class="stat-label">TOTAL STUDENTS</span><span class="stat-icon icon-green"><svg
+                    viewBox="0 0 24 24">
+                    <circle cx="9" cy="8" r="3.5" />
+                    <path d="M2.8 20v-1.6a6.2 6.2 0 0 1 12.4 0V20M16 5a3.5 3.5 0 0 1 0 6.5M18 14a5.3 5.3 0 0 1 3.2 5" />
+                </svg></span></div>
+        <div class="stat-value">{{ total_students }}<span class="stat-unit">students</span></div>
+        <div class="stat-note">Across all class groups</div>
+    </article>
+    <article class="stat-card">
+        <div class="stat-top"><span class="stat-label">PRESENT TODAY</span><span class="stat-icon icon-mint"><svg
+                    viewBox="0 0 24 24">
+                    <path d="m5 12 4 4L19 6" />
+                </svg></span></div>
+        <div class="stat-value">{{ present }}<span class="stat-unit">students</span></div>
+        <div class="stat-note"><span class="status-mark status-present"></span>{{ attendance_rate }}% of the full roster
+        </div>
+    </article>
+    <article class="stat-card">
+        <div class="stat-top"><span class="stat-label">ABSENT TODAY</span><span class="stat-icon icon-coral"><svg
+                    viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="8.5" />
+                    <path d="M9 9l6 6m0-6-6 6" />
+                </svg></span></div>
+        <div class="stat-value">{{ absent }}<span class="stat-unit">students</span></div>
+        <div class="stat-note">{{ recorded }} attendance records today</div>
+    </article>
+    <article class="stat-card stat-rate">
+        <div class="stat-top"><span class="stat-label">ATTENDANCE RATE</span><span class="stat-icon icon-yellow"><svg
+                    viewBox="0 0 24 24">
+                    <path d="M4 19V5m0 14h16M8 15l4-4 3 2 5-6" />
+                </svg></span></div>
+        <div class="stat-value">{{ attendance_rate }}<span class="stat-percent">%</span></div>
+        <div class="rate-track"><span style="width: {{ attendance_rate }}%"></span></div>
+        <div class="stat-note">Based on today's full roster</div>
+    </article>
+</section>
+<section class="dashboard-grid">
+    <article class="panel trend-panel">
+        <div class="panel-heading">
+            <div>
+                <p class="eyebrow">THE LAST SEVEN DAYS</p>
+                <h2>Attendance trend</h2>
+            </div><span class="panel-tag"><span class="status-mark status-present"></span>Present</span>
+        </div>
+        <div class="chart-area">
+            <div class="chart-y-labels"><span>All</span><span>75%</span><span>50%</span><span>25%</span></div>
+            <div class="bar-chart">{% for day in week %}<div class="bar-column">
+                    <div class="bar-space"><span class="bar-value">{{ day.count if day.count else '' }}</span>
+                        <div class="chart-bar {% if loop.last %}bar-today{% endif %}" style="height: {{ day.height }}%">
+                        </div>
+                    </div><span class="bar-label">{{ day.label }}</span>
+                </div>{% endfor %}</div>
+        </div>
+        <div class="chart-caption"><span>Daily students marked present</span><span>{{ today.strftime('%b') }} {{
+                today.day }}</span></div>
+    </article>
+    <article class="panel today-panel">
+        <div class="panel-heading">
+            <div>
+                <p class="eyebrow">{{ today.strftime('%A, %B')|upper }} {{ today.day }}</p>
+                <h2>Today's register</h2>
+            </div><a class="text-link" href="{{ url_for('attendance') }}">Open register <span>→</span></a>
+        </div>
+        <div class="register-progress">
+            <div class="progress-ring"
+                style="--progress: {{ (recorded * 100 / total_students)|round|int if total_students else 0 }}%"><span>{{
+                    recorded }}<small>/ {{ total_students }}</small></span></div>
+            <div class="progress-copy"><strong>{% if recorded == total_students and total_students %}All set for today{%
+                    elif recorded %}Good start{% else %}Ready when you are{% endif %}</strong><span>{{ recorded }} of {{
+                    total_students }} students marked</span></div>
+        </div>
+        <div class="register-legend"><span><i class="legend-dot dot-present"></i>Present <b>{{ present
+                    }}</b></span><span><i class="legend-dot dot-absent"></i>Absent <b>{{ absent }}</b></span><span><i
+                    class="legend-dot dot-unmarked"></i>Unmarked <b>{{ total_students - recorded }}</b></span></div><a
+            class="button button-secondary full-button" href="{{ url_for('attendance') }}">{% if recorded %}Update
+            attendance{% else %}Start taking attendance{% endif %}<span>→</span></a>
+    </article>
+</section>
+<section class="panel activity-panel">
+    <div class="panel-heading activity-heading">
+        <div>
+            <p class="eyebrow">LATEST UPDATES</p>
+            <h2>Recent attendance</h2>
+        </div><a class="text-link" href="{{ url_for('report') }}">View reports <span>→</span></a>
+    </div>{% if recent %}<div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>STUDENT</th>
+                    <th>CLASS</th>
+                    <th>DATE</th>
+                    <th>STATUS</th>
+                </tr>
+            </thead>
+            <tbody>{% for row in recent %}<tr>
+                    <td>
+                        <div class="student-cell">
+                            <div class="avatar avatar-{{ loop.index0 % 5 }}">{{ row.name.split()[-1][0] }}{{
+                                row.name.split()[0][0] }}</div>
+                            <div><strong>{{ row.name }}</strong><small>{{ row.student_number }}</small></div>
+                        </div>
+                    </td>
+                    <td>{{ row.class_name }}</td>
+                    <td>{{ row.attendance_date }}</td>
+                    <td><span class="status-pill status-{{ row.status|lower }}"><i></i>{{ row.status }}</span></td>
+                </tr>{% endfor %}</tbody>
+        </table>
+    </div>{% else %}<div class="empty-state"><span class="empty-icon"><svg viewBox="0 0 24 24">
+                <path d="M8 3v4m8-4v4M4 9h16M5 5h14a1 1 0 0 1 1 1v13H4V6a1 1 0 0 1 1-1Z" />
+                <path d="M8 13h3m-3 4h8" />
+            </svg></span><strong>Your register is ready</strong>
+        <p>Once attendance is recorded, the latest updates will show up here.</p><a class="text-link"
+            href="{{ url_for('attendance') }}">Take today's attendance <span>→</span></a>
+    </div>{% endif %}
+</section>
+{% endblock %}

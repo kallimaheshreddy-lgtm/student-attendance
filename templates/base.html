@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f7f8f5">
+    <title>{% block title %}Classroom{% endblock %} · Student Attendance</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+    <div class="app-shell">
+        <aside class="sidebar" id="sidebar">
+            <a class="brand" href="{{ url_for('index') }}" aria-label="Student Attendance home">
+                <span class="brand-mark"><svg viewBox="0 0 32 32" aria-hidden="true">
+                        <path d="M7 17.2 13.1 23 25 9" />
+                        <path d="M16 3.5a12.5 12.5 0 1 0 12.5 12.5" />
+                    </svg></span>
+                <span class="brand-name">Student Attendance<small>CLASSROOM TOOLS</small></span>
+            </a>
+            <div class="nav-label">WORKSPACE</div>
+            <nav class="main-nav" aria-label="Main navigation">
+                <a class="nav-link {% if active == 'overview' %}active{% endif %}" href="{{ url_for('index') }}"><svg
+                        viewBox="0 0 24 24">
+                        <rect x="3" y="3" width="8" height="8" rx="1.5" />
+                        <rect x="14" y="3" width="7" height="5" rx="1.5" />
+                        <rect x="14" y="11" width="7" height="10" rx="1.5" />
+                        <rect x="3" y="14" width="8" height="7" rx="1.5" />
+                    </svg>Overview</a>
+                <a class="nav-link {% if active == 'students' %}active{% endif %}" href="{{ url_for('students') }}"><svg
+                        viewBox="0 0 24 24">
+                        <circle cx="9" cy="8" r="3.5" />
+                        <path
+                            d="M2.8 20v-1.6a6.2 6.2 0 0 1 12.4 0V20M16 4.8a3.5 3.5 0 0 1 0 6.8M18 14a5.3 5.3 0 0 1 3.2 4.9V20" />
+                    </svg>Students<span class="nav-count">{{ total_students if total_students is defined else ''
+                        }}</span></a>
+                <a class="nav-link {% if active == 'attendance' %}active{% endif %}"
+                    href="{{ url_for('attendance') }}"><svg viewBox="0 0 24 24">
+                        <rect x="3" y="5" width="18" height="16" rx="2" />
+                        <path d="M7 3v4m10-4v4M3 10h18m-13 5 2 2 4-4" />
+                    </svg>Attendance</a>
+                <a class="nav-link {% if active == 'report' %}active{% endif %}" href="{{ url_for('report') }}"><svg
+                        viewBox="0 0 24 24">
+                        <path d="M4 20V10m8 10V4m8 16v-7" />
+                        <path d="M2 20h20" />
+                    </svg>Reports</a>
+            </nav>
+            <div class="sidebar-bottom">
+                <div class="term-card"><span class="term-dot"></span>
+                    <div><strong>Academic year</strong><small>2025 — 2026</small></div><svg viewBox="0 0 24 24">
+                        <path d="m8 10 4 4 4-4" />
+                    </svg>
+                </div>
+                <div class="teacher-profile">
+                    <div class="avatar avatar-teacher">TC</div>
+                    <div class="teacher-meta"><strong>Teacher Console</strong><small>Administrator</small></div><button
+                        class="icon-button" type="button" aria-label="Account options"><svg viewBox="0 0 24 24">
+                            <circle cx="5" cy="12" r="1" />
+                            <circle cx="12" cy="12" r="1" />
+                            <circle cx="19" cy="12" r="1" />
+                        </svg></button>
+                </div>
+            </div>
+        </aside>
+        <main class="main-area">
+            <header class="topbar">
+                <button class="menu-button icon-button" id="menu-toggle" type="button" aria-label="Open navigation"><svg
+                        viewBox="0 0 24 24">
+                        <path d="M4 6h16M4 12h16M4 18h16" />
+                    </svg></button>
+                <div class="breadcrumb"><span>Workspace</span><b>/</b><strong>{% block breadcrumb %}Overview{% endblock
+                        %}</strong></div>
+                <div class="topbar-right">
+                    <span class="today-chip"><span class="live-dot"></span>College day</span>
+                    <span class="topbar-date">{% if today is defined %}{{ today.strftime('%A, %B') }} {{ today.day }}{% endif %}</span>
+                    <div class="avatar avatar-small">TC</div>
+                </div>
+            </header>
+            <div class="page-content">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}<div class="flash-stack">{% for category, message in messages %}<div
+                        class="flash flash-{{ category }}" role="status">{{ message }}<button type="button"
+                            class="flash-close" aria-label="Dismiss">×</button></div>{% endfor %}</div>{% endif %}
+                {% endwith %}
+                {% block content %}{% endblock %}
+            </div>
+            <footer class="page-footer"><span>Student Attendance <span class="footer-dot">·</span> Attendance, made
+                    clear.</span><span>Need a hand? Contact your administrator.</span></footer>
+        </main>
+    </div>
+    <script src="{{ url_for('static', filename='script.js') }}" defer></script>
+</body>
+
+</html>
