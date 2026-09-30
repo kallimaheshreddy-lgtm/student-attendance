@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f7f8f5">
+    <title>Create administrator · Student Attendance</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body class="login-page">
+    <main class="login-panel">
+        <a class="brand login-brand" href="{{ url_for('setup') }}" aria-label="Student Attendance account setup">
+            <span class="brand-mark"><svg viewBox="0 0 32 32" aria-hidden="true">
+                    <path d="M7 17.2 13.1 23 25 9" />
+                    <path d="M16 3.5a12.5 12.5 0 1 0 12.5 12.5" />
+                </svg></span>
+            <span class="brand-name">Student Attendance<small>CLASSROOM TOOLS</small></span>
+        </a>
+        <div class="login-heading">
+            <p class="eyebrow">ONE-TIME SETUP</p>
+            <h1>Create your account<span class="heading-period">.</span></h1>
+            <p class="page-subtitle">Choose the username and password you will use to sign in.</p>
+        </div>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}<div class="flash-stack">{% for category, message in messages %}<div
+                class="flash flash-{{ category }}" role="status">{{ message }}</div>{% endfor %}</div>{% endif %}
+        {% endwith %}
+        <form method="post" class="student-form login-form">
+            {% if setup_token_required %}<label>One-time setup code<input name="setup_token" type="password" required
+                    autocomplete="off"></label>{% endif %}
+            <label>Choose username<input name="username" required minlength="3" maxlength="40" autocomplete="username"
+                    autofocus></label>
+            <label>Choose password<input name="password" type="password" required minlength="12"
+                    autocomplete="new-password"></label>
+            <label>Confirm password<input name="password_confirmation" type="password" required minlength="12"
+                    autocomplete="new-password"></label>
+            <button type="submit" class="button button-primary login-submit">Create account</button>
+        </form>
+    </main>
+</body>
+
+</html>

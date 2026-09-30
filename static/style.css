@@ -1627,6 +1627,79 @@ th:first-child {
   border-top: 1px solid #eef1ed;
 }
 
+.login-page {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 24px;
+  background-color: #f7f8f5;
+  background-image: radial-gradient(#dce8df 0.7px, transparent 0.7px);
+  background-size: 18px 18px;
+}
+
+.login-panel {
+  width: min(100%, 420px);
+  padding: 32px;
+  background: #fff;
+  border: 1px solid #e8ece7;
+  border-radius: 8px;
+  box-shadow: 0 12px 35px #25332d0a;
+}
+
+.login-brand {
+  padding: 0;
+}
+
+.login-heading {
+  margin: 40px 0 24px;
+}
+
+.login-heading h1 {
+  margin: 0;
+  color: var(--ink);
+  font: 800 26px/1.2 'Manrope', sans-serif;
+}
+
+.login-heading .page-subtitle {
+  margin-top: 9px;
+}
+
+.login-form {
+  gap: 16px;
+}
+
+.login-form input {
+  height: 44px;
+  font-size: 13px;
+}
+
+.login-submit {
+  min-height: 42px;
+  justify-content: center;
+  margin-top: 4px;
+}
+
+.forgot-link {
+  display: block;
+  margin-top: 16px;
+  color: #35694a;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
+}
+
+.forgot-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+@media (max-width: 480px) {
+  .login-panel {
+    padding: 25px 21px;
+  }
+}
+
 [hidden] {
   display: none !important;
 }

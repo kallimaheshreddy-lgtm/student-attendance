@@ -1,0 +1,143 @@
+{% extends 'base.html' %}
+{% block title %}Students{% endblock %}
+{% block breadcrumb %}Students{% endblock %}
+{% block content %}
+<section class="page-heading heading-row">
+    <div>
+        <p class="eyebrow">YOUR CLASSROOM ROSTER</p>
+        <h1>Students<span class="heading-period">.</span></h1>
+        <p class="page-subtitle">Keep your class list up to date and attendance in context.</p>
+    </div>
+    <button class="button button-primary" type="button" data-modal-open="student-modal">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 5v14m-7-7h14" />
+        </svg>
+        Add student
+    </button>
+</section>
+
+<section class="panel roster-panel">
+    <div class="list-toolbar">
+        <div class="toolbar-title"><strong>{{ students|length }} students</strong><span>·</span><span>All class
+                groups</span></div>
+        <label class="search-box">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="10.8" cy="10.8" r="6.8" />
+                <path d="m16 16 4.5 4.5" />
+            </svg>
+            <input id="student-search" type="search" placeholder="Search students" aria-label="Search students">
+        </label>
+    </div>
+    <div class="table-wrap">
+        <table id="student-table">
+            <thead>
+                <tr>
+                    <th>STUDENT</th>
+                    <th>STUDENT ID</th>
+                    <th>CLASS</th>
+                    <th>ATTENDANCE</th>
+                    <th>ROSTER ACTIONS</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for student in students %}
+                <tr class="searchable-row">
+                    <td>
+                        <div class="student-cell">
+                            <div class="avatar avatar-{{ loop.index0 % 5 }}">{{ student.name.split()[-1][0] }}{{
+                                student.name.split()[0][0] }}</div>
+                            <div><strong>{{ student.name }}</strong><small>Added to roster</small></div>
+                        </div>
+                    </td>
+                    <td class="muted-cell">{{ student.student_number }}</td>
+                    <td><span class="class-label">{{ student.class_name }}</span></td>
+                    <td>
+                        <div class="attendance-mini">
+                            <strong>{{ ((student.present_days or 0) * 100 / student.recorded_days)|round|int if
+                                student.recorded_days else '—' }}{% if student.recorded_days %}%{% endif %}</strong>
+                            <small>{{ student.present_days or 0 }} of {{ student.recorded_days }} days</small>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="roster-actions">
+                            <button class="icon-button" type="button" data-modal-open="edit-student-{{ student.id }}"
+                                aria-label="Edit {{ student.name }}" title="Edit name">
+                                <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="m15 5 4 4M4 20l4.2-.9L19 8.3 15.7 5 4.9 15.8 4 20Z" />
+                                </svg>
+                            </button>
+                            <form method="post" action="{{ url_for('delete_student', student_id=student.id) }}"
+                                data-confirm="Remove {{ student.name }} and their attendance history?">
+                                <button class="icon-button delete-button" type="submit"
+                                    aria-label="Remove {{ student.name }}" title="Remove student">
+                                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="M4 7h16m-10 4v6m4-6v6M6 7l1 14h10l1-14M9 7V4h6v3" />
+                                    </svg>
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5">
+                        <div class="empty-state compact-empty"><strong>No students yet</strong>
+                            <p>Add your first student to start taking attendance.</p>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div class="no-results" id="no-results" hidden>No students match that search.</div>
+    </div>
+    <div class="table-foot"><span>Showing {{ students|length }} of {{ students|length }} students</span></div>
+</section>
+
+<div class="modal-backdrop" id="student-modal" hidden>
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="add-modal-title">
+        <div class="modal-heading">
+            <div>
+                <p class="eyebrow">NEW CLASSMATE</p>
+                <h2 id="add-modal-title">Add a student</h2>
+            </div>
+            <button type="button" class="icon-button modal-close" data-modal-close aria-label="Close"><svg
+                    viewBox="0 0 24 24">
+                    <path d="m6 6 12 12M18 6 6 18" />
+                </svg></button>
+        </div>
+        <form method="post" action="{{ url_for('students') }}" class="student-form">
+            <label>Full name<input name="name" required maxlength="100" placeholder="e.g. Maya Johnson"></label>
+            <label>Student ID<input name="student_number" required maxlength="30" placeholder="e.g. ST-1047"></label>
+            <label>Class group<input name="class_name" required maxlength="50" placeholder="e.g. Grade 8 - A"></label>
+            <div class="modal-actions"><button type="button" class="button button-plain"
+                    data-modal-close>Cancel</button><button type="submit" class="button button-primary">Add to
+                    roster</button></div>
+        </form>
+    </section>
+</div>
+
+{% for student in students %}
+<div class="modal-backdrop" id="edit-student-{{ student.id }}" hidden>
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="edit-modal-title-{{ student.id }}">
+        <div class="modal-heading">
+            <div>
+                <p class="eyebrow">STUDENT ROSTER</p>
+                <h2 id="edit-modal-title-{{ student.id }}">Edit student name</h2>
+            </div>
+            <button type="button" class="icon-button modal-close" data-modal-close aria-label="Close"><svg
+                    viewBox="0 0 24 24">
+                    <path d="m6 6 12 12M18 6 6 18" />
+                </svg></button>
+        </div>
+        <form method="post" action="{{ url_for('edit_student', student_id=student.id) }}" class="student-form">
+            <label>Full name<input name="name" required maxlength="100" value="{{ student.name }}"
+                    autocomplete="name"></label>
+            <div class="modal-actions"><button type="button" class="button button-plain"
+                    data-modal-close>Cancel</button><button type="submit" class="button button-primary">Save
+                    name</button></div>
+        </form>
+    </section>
+</div>
+{% endfor %}
+{% endblock %}
