@@ -396,6 +396,41 @@ def report():
     )
 
 
+@app.route("/database")
+@login_required
+def database_view():
+    database = get_db()
+    tables = database.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+    ).fetchall()
+    table_names = [t["name"] for t in tables]
+
+    selected_table = request.args.get("table", table_names[0] if table_names else "")
+    if selected_table not in table_names and table_names:
+        selected_table = table_names[0]
+
+    columns = []
+    rows = []
+    counts = {}
+    for name in table_names:
+        counts[name] = database.execute(f"SELECT COUNT(*) FROM {name}").fetchone()[0]
+
+    if selected_table:
+        col_info = database.execute(f"PRAGMA table_info({selected_table})").fetchall()
+        columns = [c["name"] for c in col_info]
+        rows = database.execute(f"SELECT * FROM {selected_table} LIMIT 100").fetchall()
+
+    return render_template(
+        "database.html",
+        active="database",
+        table_names=table_names,
+        selected_table=selected_table,
+        columns=columns,
+        rows=rows,
+        counts=counts,
+    )
+
+
 init_db()
 
 
