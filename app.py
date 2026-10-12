@@ -424,7 +424,6 @@ def report():
 
 
 @app.route("/database")
-@login_required
 def database_view():
     database = get_db()
     tables = database.execute(
