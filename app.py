@@ -37,12 +37,11 @@ app = Flask(
 production = os.environ.get("APP_ENV") == "production"
 secret_key = os.environ.get("SECRET_KEY")
 if production and not secret_key:
-    secret_key = "student-attendance-production-key-fallback-2026"
+    raise RuntimeError("SECRET_KEY must be set when APP_ENV=production.")
 app.config["SECRET_KEY"] = secret_key or "student-attendance-dev-secret-key-2026"
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_SECURE"] = production
-app.config["SETUP_TOKEN"] = os.environ.get("SETUP_TOKEN", "")
 app.config["PASSWORD_RESET_TOKEN"] = os.environ.get("PASSWORD_RESET_TOKEN", "")
 
 
@@ -74,9 +73,18 @@ def close_db(_error=None):
 
 
 def init_db():
+    admin_username = os.environ.get("ADMIN_USERNAME", "").strip()
+    admin_password = os.environ.get("ADMIN_PASSWORD", "")
+    if bool(admin_username) != bool(admin_password):
+        raise RuntimeError("Set both ADMIN_USERNAME and ADMIN_PASSWORD to create the administrator account.")
+    if admin_username and not 3 <= len(admin_username) <= 40:
+        raise RuntimeError("ADMIN_USERNAME must be between 3 and 40 characters.")
+    if admin_password and len(admin_password) < 12:
+        raise RuntimeError("ADMIN_PASSWORD must be at least 12 characters.")
+
+    DATABASE.parent.mkdir(parents=True, exist_ok=True)
+    database = sqlite3.connect(DATABASE)
     try:
-        DATABASE.parent.mkdir(parents=True, exist_ok=True)
-        database = sqlite3.connect(DATABASE)
         database.execute("PRAGMA foreign_keys = ON")
         database.executescript(
             """
@@ -112,10 +120,17 @@ def init_db():
                     ("Sofia Martinez", "ST-1046", "Grade 9 · B"),
                 ],
             )
+        account_exists = database.execute(
+            "SELECT 1 FROM admin_account WHERE id = 1"
+        ).fetchone()
+        if admin_username and not account_exists:
+            database.execute(
+                "INSERT INTO admin_account (id, username, password_hash) VALUES (1, ?, ?)",
+                (admin_username, generate_password_hash(admin_password)),
+            )
         database.commit()
+    finally:
         database.close()
-    except Exception as e:
-        print(f"init_db notice: {e}")
 
 
 def valid_date(value, fallback):
@@ -179,7 +194,11 @@ def login():
         "SELECT username, password_hash FROM admin_account WHERE id = 1"
     ).fetchone()
     if account is None:
-        return redirect(url_for("setup"))
+        flash(
+            "Administrator sign-in is not configured. Set ADMIN_USERNAME and ADMIN_PASSWORD in the server environment.",
+            "error",
+        )
+        return render_template("login.html")
 
     if request.method == "POST":
         username = request.form.get("username", "")
@@ -206,7 +225,8 @@ def forgot_password():
         "SELECT 1 FROM admin_account WHERE id = 1"
     ).fetchone()
     if account_exists is None:
-        return redirect(url_for("setup"))
+        flash("No administrator account is configured. Contact the server administrator.", "error")
+        return redirect(url_for("login"))
 
     reset_token = app.config["PASSWORD_RESET_TOKEN"]
     if request.method == "POST":
@@ -235,48 +255,6 @@ def forgot_password():
         reset_enabled=not production or bool(reset_token),
         reset_token_required=production,
     )
-
-
-@app.route("/setup", methods=["GET", "POST"])
-def setup():
-    database = get_db()
-    account_exists = database.execute(
-        "SELECT 1 FROM admin_account WHERE id = 1"
-    ).fetchone()
-    if account_exists:
-        return redirect(url_for("login"))
-
-    if request.method == "POST":
-        setup_token = request.form.get("setup_token", "")
-        required_token = app.config["SETUP_TOKEN"]
-        if production and not required_token:
-            flash("Administrator setup is not enabled on this server yet.", "error")
-        elif production and not hmac.compare_digest(setup_token, required_token):
-            flash("The setup code is incorrect.", "error")
-        else:
-            username = request.form.get("username", "").strip()
-            password = request.form.get("password", "")
-            password_confirmation = request.form.get("password_confirmation", "")
-            if not 3 <= len(username) <= 40:
-                flash("Choose a username between 3 and 40 characters.", "error")
-            elif len(password) < 12:
-                flash("Choose a password with at least 12 characters.", "error")
-            elif password != password_confirmation:
-                flash("The passwords do not match.", "error")
-            else:
-                try:
-                    database.execute(
-                        "INSERT INTO admin_account (id, username, password_hash) VALUES (1, ?, ?)",
-                        (username, generate_password_hash(password)),
-                    )
-                    database.commit()
-                    flash("Administrator account created. You can now sign in.", "success")
-                    return redirect(url_for("login"))
-                except sqlite3.IntegrityError:
-                    database.rollback()
-                    flash("An administrator account has already been created.", "error")
-
-    return render_template("setup.html", setup_token_required=production)
 
 
 @app.post("/logout")
@@ -424,6 +402,7 @@ def report():
 
 
 @app.route("/database")
+@login_required
 def database_view():
     database = get_db()
     tables = database.execute(
