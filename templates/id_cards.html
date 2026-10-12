@@ -1,0 +1,306 @@
+{% extends 'base.html' %}
+{% block title %}Student ID Badges{% endblock %}
+{% block breadcrumb %}ID Cards{% endblock %}
+{% block content %}
+<section class="page-heading heading-row no-print">
+    <div>
+        <p class="eyebrow">STUDENT BADGES & PASSES</p>
+        <h1>Student ID Badges<span class="heading-period">.</span></h1>
+        <p class="page-subtitle">Printable badges with scannable QR codes for classroom attendance.</p>
+    </div>
+    <div style="display: flex; gap: 10px;">
+        <button class="button button-primary" type="button" onclick="window.print()" style="display: inline-flex; align-items: center; gap: 6px;">
+            <svg viewBox="0 0 24 24"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v8H6z"/></svg>
+            Print ID Cards
+        </button>
+        <a href="{{ url_for('qr_scanner') }}" class="button button-secondary" style="display: inline-flex; align-items: center; gap: 6px;">
+            <svg viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2m10 0h2a2 2 0 0 1 2 2v2m0 10v2a2 2 0 0 1-2 2h-2m-10 0H5a2 2 0 0 1-2-2v-2" /><rect x="7" y="7" width="3" height="3" /><rect x="14" y="7" width="3" height="3" /><rect x="7" y="14" width="3" height="3" /><path d="M14 14h3v3h-3z" /></svg>
+            Open QR Scanner
+        </a>
+    </div>
+</section>
+
+<!-- Filter Toolbar (Hidden during print) -->
+<section class="panel no-print" style="margin-bottom: 24px; padding: 16px 20px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+            <span style="font-size: 0.85rem; font-weight: 700; color: #64748b; margin-right: 4px;">FILTER BY CLASS:</span>
+            <a href="{{ url_for('id_cards') }}" class="button {% if not selected_class %}button-primary{% else %}button-secondary{% endif %}" style="padding: 6px 14px; font-size: 0.82rem;">
+                All ({{ students|length }})
+            </a>
+            {% for cls in class_list %}
+            <a href="{{ url_for('id_cards', class=cls) }}" class="button {% if selected_class == cls %}button-primary{% else %}button-secondary{% endif %}" style="padding: 6px 14px; font-size: 0.82rem;">
+                {{ cls }}
+            </a>
+            {% endfor %}
+        </div>
+        <div>
+            <input type="search" id="card-search" placeholder="Search badge..." style="padding: 7px 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.85rem;" oninput="filterCards()">
+        </div>
+    </div>
+</section>
+
+<!-- Grid of Student Cards -->
+<div id="badge-grid" class="badge-grid">
+    {% for s in students %}
+    <article class="id-card" data-search="{{ s.name|lower }} {{ s.student_number|lower }} {{ s.class_name|lower }}">
+        <!-- Card Header -->
+        <div class="id-card-header">
+            <div class="id-school-tag">
+                <span class="id-dot"></span>
+                STUDENT PASS · 2025–26
+            </div>
+            <div class="id-school-title">Classroom Attendance</div>
+        </div>
+
+        <!-- Student Photo & Info -->
+        <div class="id-card-body">
+            <div class="id-avatar avatar avatar-{{ loop.index0 % 5 }}">
+                {{ s.name.split()[-1][0] }}{{ s.name.split()[0][0] }}
+            </div>
+            <div class="id-details">
+                <h3 class="id-student-name">{{ s.name }}</h3>
+                <div class="id-meta-row">
+                    <span class="id-badge-number">{{ s.student_number }}</span>
+                    <span class="id-class-badge">{{ s.class_name }}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- QR Code Display Box -->
+        <div class="id-qr-box">
+            <div class="qr-canvas-holder" data-qr-text="{{ s.student_number }}"></div>
+            <small class="id-qr-caption">SCAN TO CHECK IN</small>
+        </div>
+
+        <!-- Card Footer -->
+        <div class="id-card-footer">
+            <span>OFFICIAL ATTENDANCE BADGE</span>
+            <span>ID: #{{ s.id }}</span>
+        </div>
+    </article>
+    {% else %}
+    <div class="empty-state" style="grid-column: 1 / -1; padding: 48px; text-align: center;">
+        <strong>No students found</strong>
+        <p>No students match the selected filter.</p>
+    </div>
+    {% endfor %}
+</div>
+
+<style>
+.badge-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 22px;
+}
+
+.id-card {
+    background: #fff;
+    border-radius: 16px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.04);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.id-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+}
+
+.id-card-header {
+    width: 100%;
+    text-align: center;
+    border-bottom: 1px dashed #e2e8f0;
+    padding-bottom: 12px;
+    margin-bottom: 14px;
+}
+
+.id-school-tag {
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    color: #059669;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: #ecfdf5;
+    padding: 3px 8px;
+    border-radius: 999px;
+    margin-bottom: 4px;
+}
+
+.id-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #10b981;
+}
+
+.id-school-title {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #1e293b;
+}
+
+.id-card-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    width: 100%;
+}
+
+.id-avatar {
+    width: 58px;
+    height: 58px;
+    font-size: 1.3rem;
+    font-weight: 700;
+    margin-bottom: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.id-student-name {
+    margin: 0;
+    font-size: 1.12rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.id-meta-row {
+    margin-top: 6px;
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.id-badge-number {
+    font-size: 0.82rem;
+    font-weight: 700;
+    font-family: monospace;
+    background: #f1f5f9;
+    color: #334155;
+    padding: 3px 8px;
+    border-radius: 6px;
+}
+
+.id-class-badge {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #0284c7;
+    background: #e0f2fe;
+    padding: 3px 8px;
+    border-radius: 6px;
+}
+
+.id-qr-box {
+    margin-top: 16px;
+    padding: 12px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+}
+
+.qr-canvas-holder {
+    background: #fff;
+    padding: 8px;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.id-qr-caption {
+    margin-top: 8px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: #64748b;
+}
+
+.id-card-footer {
+    width: 100%;
+    margin-top: 14px;
+    padding-top: 10px;
+    border-top: 1px dashed #e2e8f0;
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: #94a3b8;
+}
+
+/* Print Styles */
+@media print {
+    body {
+        background: #fff !important;
+    }
+    .sidebar, .topbar, .no-print, .flash-stack {
+        display: none !important;
+    }
+    .main-area {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    .page-content {
+        padding: 0 !important;
+    }
+    .badge-grid {
+        display: grid !important;
+        grid-template-columns: repeat(3, 1fr) !important;
+        gap: 16px !important;
+        page-break-inside: auto;
+    }
+    .id-card {
+        border: 1px dashed #64748b !important;
+        box-shadow: none !important;
+        break-inside: avoid;
+        page-break-inside: avoid;
+        padding: 14px !important;
+    }
+}
+</style>
+
+<!-- QRCode.js CDN for client-side instant QR rendering -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const qrHolders = document.querySelectorAll(".qr-canvas-holder");
+    qrHolders.forEach(el => {
+        const text = el.getAttribute("data-qr-text");
+        if (text) {
+            new QRCode(el, {
+                text: text,
+                width: 110,
+                height: 110,
+                colorDark: "#0f172a",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.M
+            });
+        }
+    });
+});
+
+function filterCards() {
+    const q = document.getElementById("card-search").value.toLowerCase().trim();
+    const cards = document.querySelectorAll(".id-card");
+    cards.forEach(card => {
+        const searchTxt = card.getAttribute("data-search") || "";
+        if (!q || searchTxt.includes(q)) {
+            card.style.display = "flex";
+        } else {
+            card.style.display = "none";
+        }
+    });
+}
+</script>
+{% endblock %}

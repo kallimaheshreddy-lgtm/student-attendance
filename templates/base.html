@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
-        href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
@@ -45,6 +45,20 @@
                         <rect x="3" y="5" width="18" height="16" rx="2" />
                         <path d="M7 3v4m10-4v4M3 10h18m-13 5 2 2 4-4" />
                     </svg>Attendance</a>
+                <a class="nav-link {% if active == 'qr_scanner' %}active{% endif %}"
+                    href="{{ url_for('qr_scanner') }}"><svg viewBox="0 0 24 24">
+                        <path d="M3 7V5a2 2 0 0 1 2-2h2m10 0h2a2 2 0 0 1 2 2v2m0 10v2a2 2 0 0 1-2 2h-2m-10 0H5a2 2 0 0 1-2-2v-2" />
+                        <rect x="7" y="7" width="3" height="3" />
+                        <rect x="14" y="7" width="3" height="3" />
+                        <rect x="7" y="14" width="3" height="3" />
+                        <path d="M14 14h3v3h-3z" />
+                    </svg>QR Scanner</a>
+                <a class="nav-link {% if active == 'id_cards' %}active{% endif %}"
+                    href="{{ url_for('id_cards') }}"><svg viewBox="0 0 24 24">
+                        <rect x="3" y="4" width="18" height="16" rx="2" />
+                        <circle cx="9" cy="10" r="2" />
+                        <path d="M15 8h2m-2 4h2M6 16c0-1.5 1.5-2.5 3-2.5s3 1 3 2.5m3-1h2" />
+                    </svg>ID Cards</a>
                 <a class="nav-link {% if active == 'report' %}active{% endif %}" href="{{ url_for('report') }}"><svg
                         viewBox="0 0 24 24">
                         <path d="M4 20V10m8 10V4m8 16v-7" />

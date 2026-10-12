@@ -1,0 +1,487 @@
+{% extends 'base.html' %}
+{% block title %}QR Scanner · Attendance{% endblock %}
+{% block breadcrumb %}QR Scanner{% endblock %}
+{% block content %}
+<section class="page-heading heading-row">
+    <div>
+        <p class="eyebrow">SMART CLASSROOM CHECK-IN</p>
+        <h1>QR Attendance Scanner<span class="heading-period">.</span></h1>
+        <p class="page-subtitle">Scan student ID badges with your camera for instant check-in.</p>
+    </div>
+    <div style="display: flex; gap: 10px; align-items: center;">
+        <a href="{{ url_for('id_cards') }}" class="button button-secondary" style="display: inline-flex; align-items: center; gap: 6px;">
+            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M15 8h2m-2 4h2M6 16c0-1.5 1.5-2.5 3-2.5s3 1 3 2.5m3-1h2"/></svg>
+            Print ID Badges
+        </a>
+        <a href="{{ url_for('attendance') }}" class="button button-primary" style="display: inline-flex; align-items: center; gap: 6px;">
+            <svg viewBox="0 0 24 24"><path d="M7 3v4m10-4v4M3 10h18m-13 5 2 2 4-4"/></svg>
+            Attendance Sheet
+        </a>
+    </div>
+</section>
+
+<!-- Stats Row -->
+<section class="stats-grid" style="margin-bottom: 24px;">
+    <article class="stat-card">
+        <div class="stat-top">
+            <span class="stat-label">SCANNED TODAY</span>
+            <span class="stat-icon icon-mint">
+                <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18"/></svg>
+            </span>
+        </div>
+        <div class="stat-value" id="stat-total">{{ total_today }}<span class="stat-unit">students</span></div>
+        <div class="stat-note">Checked in today ({{ today.strftime('%b %d, %Y') }})</div>
+    </article>
+    <article class="stat-card">
+        <div class="stat-top">
+            <span class="stat-label">PRESENT</span>
+            <span class="stat-icon icon-green">
+                <svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg>
+            </span>
+        </div>
+        <div class="stat-value" id="stat-present" style="color: #16a34a;">{{ present_today }}</div>
+        <div class="stat-note">On time check-ins</div>
+    </article>
+    <article class="stat-card">
+        <div class="stat-top">
+            <span class="stat-label">LATE</span>
+            <span class="stat-icon icon-coral">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 3"/></svg>
+            </span>
+        </div>
+        <div class="stat-value" id="stat-late" style="color: #ea580c;">{{ late_today }}</div>
+        <div class="stat-note">Marked late arrivals</div>
+    </article>
+</section>
+
+<!-- Main Scanner Interface -->
+<div style="display: grid; grid-template-columns: minmax(320px, 460px) 1fr; gap: 24px; align-items: start;">
+    <!-- Scanner Card -->
+    <section class="panel" style="padding: 24px; border-radius: 16px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <div>
+                <h2 style="font-size: 1.15rem; font-weight: 700; margin: 0; color: #1e293b;">Live Camera Scanner</h2>
+                <small style="color: #64748b;">Point camera at student QR badge</small>
+            </div>
+            <!-- Check-in Status Selector -->
+            <div style="display: flex; gap: 4px; background: #f1f5f9; padding: 4px; border-radius: 999px;">
+                <label style="cursor: pointer; padding: 4px 12px; border-radius: 999px; font-size: 0.8rem; font-weight: 600;" id="status-present-label" class="scanner-status-active">
+                    <input type="radio" name="scan_status" value="Present" checked style="display: none;" onchange="updateScanStatus('Present')">
+                    Present
+                </label>
+                <label style="cursor: pointer; padding: 4px 12px; border-radius: 999px; font-size: 0.8rem; font-weight: 600;" id="status-late-label">
+                    <input type="radio" name="scan_status" value="Late" style="display: none;" onchange="updateScanStatus('Late')">
+                    Late
+                </label>
+            </div>
+        </div>
+
+        <!-- Camera Viewport Box -->
+        <div id="reader-container" style="position: relative; width: 100%; border-radius: 12px; overflow: hidden; background: #0f172a; min-height: 300px; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 4px 16px rgba(0,0,0,0.1);">
+            <div id="reader" style="width: 100%;"></div>
+            <div id="camera-loading" style="color: #94a3b8; text-align: center; padding: 40px 20px;">
+                <svg viewBox="0 0 24 24" style="width: 48px; height: 48px; stroke: #38bdf8; margin: 0 auto 12px; stroke-width: 1.5; animation: pulse 1.5s infinite;">
+                    <path d="M3 7V5a2 2 0 0 1 2-2h2m10 0h2a2 2 0 0 1 2 2v2m0 10v2a2 2 0 0 1-2 2h-2m-10 0H5a2 2 0 0 1-2-2v-2" />
+                    <circle cx="12" cy="12" r="3" />
+                </svg>
+                <p style="margin: 0; font-weight: 600; color: #f8fafc;">Camera starting...</p>
+                <small style="color: #64748b;">Allow browser camera access when prompted</small>
+            </div>
+        </div>
+
+        <!-- Camera Switcher & Controls -->
+        <div style="margin-top: 14px; display: flex; gap: 8px;">
+            <select id="camera-select" style="flex: 1; padding: 8px 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.85rem; background: #fff;">
+                <option value="">Selecting camera...</option>
+            </select>
+            <button id="toggle-cam-btn" type="button" class="button button-secondary" style="padding: 8px 14px; font-size: 0.85rem;" onclick="toggleCamera()">
+                Restart
+            </button>
+        </div>
+
+        <!-- Last Scanned Result Banner -->
+        <div id="scan-result-card" style="display: none; margin-top: 16px; padding: 14px 16px; border-radius: 12px; background: #ecfdf5; border: 1px solid #a7f3d0; animation: slideDown 0.25s ease;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <div id="res-avatar" class="avatar avatar-0" style="width: 44px; height: 44px; font-size: 1rem; flex-shrink: 0;">TC</div>
+                <div style="flex: 1; min-width: 0;">
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        <strong id="res-name" style="font-size: 1rem; color: #065f46;">Student Name</strong>
+                        <span id="res-badge" class="badge badge-present" style="font-size: 0.7rem; padding: 2px 8px;">Present</span>
+                    </div>
+                    <div style="font-size: 0.82rem; color: #047857; margin-top: 2px;">
+                        <span id="res-id">ST-1000</span> · <span id="res-class">Class</span> · <span id="res-time">Just now</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="scan-error-card" style="display: none; margin-top: 16px; padding: 12px 14px; border-radius: 12px; background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; font-size: 0.85rem;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <svg viewBox="0 0 24 24" style="stroke: #dc2626; width: 18px; height: 18px;"><circle cx="12" cy="12" r="9"/><path d="M12 8v4m0 4h.01"/></svg>
+                <span id="scan-error-msg">Student not found</span>
+            </div>
+        </div>
+
+        <!-- Manual Input Fallback -->
+        <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid #f1f5f9;">
+            <label style="display: block; font-size: 0.8rem; font-weight: 700; color: #64748b; margin-bottom: 6px;">MANUAL STUDENT ID CHECK-IN</label>
+            <form onsubmit="handleManualSubmit(event)" style="display: flex; gap: 8px;">
+                <input id="manual-student-input" type="text" placeholder="e.g. ST-1042 or Roll #" style="flex: 1; padding: 9px 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.9rem;" required>
+                <button type="submit" class="button button-primary" style="padding: 9px 16px; font-size: 0.85rem;">Check In</button>
+            </form>
+        </div>
+    </section>
+
+    <!-- Recent Scans Live Feed -->
+    <section class="panel roster-panel">
+        <div class="list-toolbar">
+            <div class="toolbar-title">
+                <strong>Live Check-in Feed</strong>
+                <span>·</span>
+                <span id="feed-count">{{ recent_scans|length }} today</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: #16a34a; font-weight: 600;">
+                <span class="live-dot" style="background: #22c55e;"></span> Real-time Sync
+            </div>
+        </div>
+        <div class="table-wrap">
+            <table id="feed-table">
+                <thead>
+                    <tr>
+                        <th>STUDENT</th>
+                        <th>STUDENT ID</th>
+                        <th>CLASS</th>
+                        <th>STATUS</th>
+                    </tr>
+                </thead>
+                <tbody id="feed-body">
+                    {% for scan in recent_scans %}
+                    <tr>
+                        <td>
+                            <div class="student-cell">
+                                <div class="avatar avatar-{{ loop.index0 % 5 }}">{{ scan.name.split()[-1][0] }}{{ scan.name.split()[0][0] }}</div>
+                                <div><strong>{{ scan.name }}</strong></div>
+                            </div>
+                        </td>
+                        <td class="muted-cell">{{ scan.student_number }}</td>
+                        <td><span class="class-label">{{ scan.class_name }}</span></td>
+                        <td>
+                            <span class="badge badge-{{ scan.status|lower }}">{{ scan.status }}</span>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr id="empty-feed-row">
+                        <td colspan="4">
+                            <div class="empty-state compact-empty">
+                                <strong>No check-ins yet today</strong>
+                                <p>Scan student QR badges to start checking students in.</p>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="table-foot">
+            <span>Database: SQLite <code>attendance</code> table</span>
+            <span>Duplicate scans automatically update record</span>
+        </div>
+    </section>
+</div>
+
+<style>
+@keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.6; transform: scale(0.95); }
+}
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.scanner-status-active {
+    background: #fff;
+    color: #15803d;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+#reader video {
+    border-radius: 12px;
+    object-fit: cover !important;
+}
+#reader {
+    border: none !important;
+}
+#reader__scan_region {
+    background: transparent !important;
+}
+</style>
+
+<!-- Include Html5-Qrcode Library from CDN -->
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+<script>
+let currentStatus = "Present";
+let html5QrCode = null;
+let lastScannedId = null;
+let lastScannedTime = 0;
+let isProcessing = false;
+
+// Audio Chime (Web Audio API Synthesizer)
+function playChime(isSuccess = true) {
+    try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        const ctx = new AudioContext();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        if (isSuccess) {
+            osc.type = "sine";
+            osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+            osc.frequency.setValueAtTime(880, ctx.currentTime + 0.1); // A5
+            gain.gain.setValueAtTime(0.25, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.35);
+        } else {
+            osc.type = "triangle";
+            osc.frequency.setValueAtTime(280, ctx.currentTime);
+            gain.gain.setValueAtTime(0.3, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.3);
+        }
+    } catch (e) {
+        // Audio not allowed yet
+    }
+}
+
+function updateScanStatus(status) {
+    currentStatus = status;
+    const pres = document.getElementById("status-present-label");
+    const late = document.getElementById("status-late-label");
+    if (status === "Present") {
+        pres.className = "scanner-status-active";
+        late.className = "";
+    } else {
+        late.className = "scanner-status-active";
+        pres.className = "";
+    }
+}
+
+async function markAttendance(studentNumber) {
+    if (isProcessing) return;
+    const now = Date.now();
+    // Prevent duplicate scans within 3 seconds for same student
+    if (studentNumber === lastScannedId && now - lastScannedTime < 3000) {
+        return;
+    }
+
+    isProcessing = true;
+    lastScannedId = studentNumber;
+    lastScannedTime = now;
+
+    try {
+        const response = await fetch("{{ url_for('api_scan_attendance') }}", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                student_number: studentNumber,
+                status: currentStatus,
+                date: "{{ today.isoformat() }}"
+            })
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+            playChime(true);
+            showSuccessBanner(result.student, result.status, result.was_already_marked);
+            addToFeed(result.student, result.status);
+            updateStats(result.status, result.was_already_marked);
+        } else {
+            playChime(false);
+            showErrorBanner(result.message || "Student not found in database.");
+        }
+    } catch (err) {
+        console.error(err);
+        showErrorBanner("Network error marking attendance.");
+    } finally {
+        setTimeout(() => { isProcessing = false; }, 1200);
+    }
+}
+
+function showSuccessBanner(student, status, wasAlready) {
+    const errorCard = document.getElementById("scan-error-card");
+    const resCard = document.getElementById("scan-result-card");
+    errorCard.style.display = "none";
+
+    document.getElementById("res-name").textContent = student.name;
+    document.getElementById("res-id").textContent = student.student_number;
+    document.getElementById("res-class").textContent = student.class_name;
+    const badge = document.getElementById("res-badge");
+    badge.textContent = status + (wasAlready ? " (Updated)" : "");
+    badge.className = "badge badge-" + status.toLowerCase();
+
+    const parts = student.name.trim().split(" ");
+    const initials = parts.length > 1 ? parts[parts.length - 1][0] + parts[0][0] : parts[0].slice(0, 2);
+    document.getElementById("res-avatar").textContent = initials.toUpperCase();
+    document.getElementById("res-time").textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    resCard.style.display = "block";
+}
+
+function showErrorBanner(msg) {
+    const errorCard = document.getElementById("scan-error-card");
+    const resCard = document.getElementById("scan-result-card");
+    resCard.style.display = "none";
+    document.getElementById("scan-error-msg").textContent = msg;
+    errorCard.style.display = "block";
+    setTimeout(() => { errorCard.style.display = "none"; }, 4000);
+}
+
+function addToFeed(student, status) {
+    const emptyRow = document.getElementById("empty-feed-row");
+    if (emptyRow) emptyRow.remove();
+
+    const tbody = document.getElementById("feed-body");
+    const parts = student.name.trim().split(" ");
+    const initials = parts.length > 1 ? parts[parts.length - 1][0] + parts[0][0] : parts[0].slice(0, 2);
+
+    const tr = document.createElement("tr");
+    tr.style.animation = "slideDown 0.3s ease";
+    tr.innerHTML = `
+        <td>
+            <div class="student-cell">
+                <div class="avatar avatar-1">${initials.toUpperCase()}</div>
+                <div><strong>${student.name}</strong></div>
+            </div>
+        </td>
+        <td class="muted-cell">${student.student_number}</td>
+        <td><span class="class-label">${student.class_name}</span></td>
+        <td><span class="badge badge-${status.toLowerCase()}">${status}</span></td>
+    `;
+    tbody.insertBefore(tr, tbody.firstChild);
+
+    // Update count
+    const rows = tbody.querySelectorAll("tr").length;
+    document.getElementById("feed-count").textContent = `${rows} today`;
+}
+
+function updateStats(status, wasAlready) {
+    if (!wasAlready) {
+        const totalEl = document.getElementById("stat-total");
+        const cur = parseInt(totalEl.textContent) || 0;
+        totalEl.innerHTML = `${cur + 1}<span class="stat-unit">students</span>`;
+    }
+    if (status === "Present") {
+        const el = document.getElementById("stat-present");
+        el.textContent = (parseInt(el.textContent) || 0) + 1;
+    } else if (status === "Late") {
+        const el = document.getElementById("stat-late");
+        el.textContent = (parseInt(el.textContent) || 0) + 1;
+    }
+}
+
+function handleManualSubmit(e) {
+    e.preventDefault();
+    const input = document.getElementById("manual-student-input");
+    const val = input.value.trim();
+    if (val) {
+        markAttendance(val);
+        input.value = "";
+    }
+}
+
+// Camera Scanner Setup
+async function startCamera(cameraId = null) {
+    const loading = document.getElementById("camera-loading");
+    if (loading) loading.style.display = "flex";
+
+    try {
+        if (!html5QrCode) {
+            html5QrCode = new Html5Qrcode("reader");
+        }
+
+        const cameras = await Html5Qrcode.getCameras();
+        const select = document.getElementById("camera-select");
+        select.innerHTML = "";
+
+        if (cameras && cameras.length > 0) {
+            cameras.forEach((cam, idx) => {
+                const opt = document.createElement("option");
+                opt.value = cam.id;
+                opt.textContent = cam.label || `Camera ${idx + 1}`;
+                select.appendChild(opt);
+            });
+
+            const targetCamId = cameraId || cameras[0].id;
+            select.value = targetCamId;
+
+            select.onchange = () => {
+                if (html5QrCode.isScanning) {
+                    html5QrCode.stop().then(() => {
+                        startCamera(select.value);
+                    });
+                } else {
+                    startCamera(select.value);
+                }
+            };
+
+            await html5QrCode.start(
+                targetCamId,
+                {
+                    fps: 10,
+                    qrbox: { width: 220, height: 220 },
+                    aspectRatio: 1.0,
+                },
+                (decodedText) => {
+                    markAttendance(decodedText.trim());
+                },
+                (errorMessage) => {
+                    // Ignore frame misses
+                }
+            );
+
+            if (loading) loading.style.display = "none";
+        } else {
+            if (loading) {
+                loading.innerHTML = `
+                    <div style="padding: 20px; text-align: center;">
+                        <p style="color: #f8fafc; font-weight: 600;">No camera detected</p>
+                        <small style="color: #94a3b8;">Use the Manual Student ID box below to check students in.</small>
+                    </div>
+                `;
+            }
+        }
+    } catch (err) {
+        console.warn("Camera init issue:", err);
+        if (loading) {
+            loading.innerHTML = `
+                <div style="padding: 20px; text-align: center;">
+                    <p style="color: #f8fafc; font-weight: 600;">Camera Permission Needed</p>
+                    <small style="color: #94a3b8;">Please allow camera permission in your browser or use Manual Check-in.</small>
+                </div>
+            `;
+        }
+    }
+}
+
+function toggleCamera() {
+    if (html5QrCode && html5QrCode.isScanning) {
+        html5QrCode.stop().then(() => {
+            const select = document.getElementById("camera-select");
+            startCamera(select.value);
+        });
+    } else {
+        startCamera();
+    }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    // Start camera when page loads
+    startCamera();
+});
+</script>
+{% endblock %}
