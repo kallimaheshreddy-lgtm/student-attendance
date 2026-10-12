@@ -2,22 +2,43 @@ import os
 import sqlite3
 import hmac
 import secrets
+import shutil
 from datetime import date, timedelta
 from functools import wraps
 from pathlib import Path
 
-from flask import Flask, abort, flash, g, redirect, render_template, request, session, url_for
+from flask import Flask, abort, flash, g, jsonify, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
 
 
 BASE_DIR = Path(__file__).resolve().parent
-DATABASE = BASE_DIR / "database.db"
-app = Flask(__name__)
+
+# Check if running in a serverless environment (Vercel / AWS Lambda) where
+# the project directory is read-only and only /tmp is writable.
+is_serverless = bool(
+    os.environ.get("VERCEL")
+    or os.environ.get("VERCEL_ENV")
+    or os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
+)
+
+if is_serverless:
+    DATABASE = Path("/tmp") / "attendance.db"
+    seed_db = BASE_DIR / "database.db"
+    if not DATABASE.exists() and seed_db.exists():
+        shutil.copy2(seed_db, DATABASE)
+else:
+    DATABASE = BASE_DIR / "database.db"
+
+app = Flask(
+    __name__,
+    template_folder=str(BASE_DIR / "templates"),
+    static_folder=str(BASE_DIR / "static"),
+)
 production = os.environ.get("APP_ENV") == "production"
 secret_key = os.environ.get("SECRET_KEY")
 if production and not secret_key:
-    raise RuntimeError("Set SECRET_KEY in the hosting service environment.")
-app.config["SECRET_KEY"] = secret_key or secrets.token_hex(32)
+    secret_key = "student-attendance-production-key-fallback-2026"
+app.config["SECRET_KEY"] = secret_key or "student-attendance-dev-secret-key-2026"
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_SECURE"] = production
@@ -37,6 +58,8 @@ def login_required(view):
 
 def get_db():
     if "db" not in g:
+        if not DATABASE.exists():
+            init_db()
         g.db = sqlite3.connect(DATABASE)
         g.db.row_factory = sqlite3.Row
         g.db.execute("PRAGMA foreign_keys = ON")
@@ -51,44 +74,48 @@ def close_db(_error=None):
 
 
 def init_db():
-    database = sqlite3.connect(DATABASE)
-    database.execute("PRAGMA foreign_keys = ON")
-    database.executescript(
-        """
-        CREATE TABLE IF NOT EXISTS students (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            student_number TEXT NOT NULL UNIQUE,
-            class_name TEXT NOT NULL,
-            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-        );
-        CREATE TABLE IF NOT EXISTS attendance (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
-            attendance_date TEXT NOT NULL,
-            status TEXT NOT NULL CHECK(status IN ('Present', 'Absent', 'Late', 'Excused')),
-            UNIQUE(student_id, attendance_date)
-        );
-        CREATE TABLE IF NOT EXISTS admin_account (
-            id INTEGER PRIMARY KEY CHECK (id = 1),
-            username TEXT NOT NULL UNIQUE,
-            password_hash TEXT NOT NULL
-        );
-        """
-    )
-    if database.execute("SELECT COUNT(*) FROM students").fetchone()[0] == 0:
-        database.executemany(
-            "INSERT INTO students (name, student_number, class_name) VALUES (?, ?, ?)",
-            [
-                ("Olivia Chen", "ST-1042", "Grade 8 · A"),
-                ("Noah Williams", "ST-1043", "Grade 8 · A"),
-                ("Amara Okafor", "ST-1044", "Grade 8 · B"),
-                ("Liam Patel", "ST-1045", "Grade 9 · A"),
-                ("Sofia Martinez", "ST-1046", "Grade 9 · B"),
-            ],
+    try:
+        DATABASE.parent.mkdir(parents=True, exist_ok=True)
+        database = sqlite3.connect(DATABASE)
+        database.execute("PRAGMA foreign_keys = ON")
+        database.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS students (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                student_number TEXT NOT NULL UNIQUE,
+                class_name TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE IF NOT EXISTS attendance (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+                attendance_date TEXT NOT NULL,
+                status TEXT NOT NULL CHECK(status IN ('Present', 'Absent', 'Late', 'Excused')),
+                UNIQUE(student_id, attendance_date)
+            );
+            CREATE TABLE IF NOT EXISTS admin_account (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                username TEXT NOT NULL UNIQUE,
+                password_hash TEXT NOT NULL
+            );
+            """
         )
-    database.commit()
-    database.close()
+        if database.execute("SELECT COUNT(*) FROM students").fetchone()[0] == 0:
+            database.executemany(
+                "INSERT INTO students (name, student_number, class_name) VALUES (?, ?, ?)",
+                [
+                    ("Olivia Chen", "ST-1042", "Grade 8 · A"),
+                    ("Noah Williams", "ST-1043", "Grade 8 · A"),
+                    ("Amara Okafor", "ST-1044", "Grade 8 · B"),
+                    ("Liam Patel", "ST-1045", "Grade 9 · A"),
+                    ("Sofia Martinez", "ST-1046", "Grade 9 · B"),
+                ],
+            )
+        database.commit()
+        database.close()
+    except Exception as e:
+        print(f"init_db notice: {e}")
 
 
 def valid_date(value, fallback):
@@ -428,6 +455,125 @@ def database_view():
         columns=columns,
         rows=rows,
         counts=counts,
+    )
+
+
+@app.route("/qr-scanner")
+@login_required
+def qr_scanner():
+    today = date.today().isoformat()
+    database = get_db()
+    recent_scans = database.execute(
+        """SELECT students.name, students.student_number, students.class_name,
+                  attendance.status, attendance.attendance_date, attendance.id
+           FROM attendance JOIN students ON students.id = attendance.student_id
+           WHERE attendance.attendance_date = ?
+           ORDER BY attendance.id DESC LIMIT 20""",
+        (today,),
+    ).fetchall()
+    total_today = database.execute(
+        "SELECT COUNT(*) FROM attendance WHERE attendance_date = ?", (today,)
+    ).fetchone()[0]
+    present_today = database.execute(
+        "SELECT COUNT(*) FROM attendance WHERE attendance_date = ? AND status = 'Present'", (today,)
+    ).fetchone()[0]
+    late_today = database.execute(
+        "SELECT COUNT(*) FROM attendance WHERE attendance_date = ? AND status = 'Late'", (today,)
+    ).fetchone()[0]
+
+    return render_template(
+        "qr_scanner.html",
+        active="qr_scanner",
+        today=date.today(),
+        recent_scans=recent_scans,
+        total_today=total_today,
+        present_today=present_today,
+        late_today=late_today,
+    )
+
+
+@app.post("/api/scan-attendance")
+@login_required
+def api_scan_attendance():
+    payload = request.get_json(silent=True) or request.form
+    raw_number = (payload.get("student_number") or "").strip()
+    status = payload.get("status") or "Present"
+    if status not in {"Present", "Late", "Excused", "Absent"}:
+        status = "Present"
+    today_str = valid_date(payload.get("date"), date.today()).isoformat()
+
+    if not raw_number:
+        return jsonify({"success": False, "message": "No student number provided."}), 400
+
+    database = get_db()
+    student = database.execute(
+        "SELECT id, name, student_number, class_name FROM students WHERE UPPER(student_number) = UPPER(?)",
+        (raw_number,),
+    ).fetchone()
+
+    if not student and raw_number.isdigit():
+        student = database.execute(
+            "SELECT id, name, student_number, class_name FROM students WHERE id = ?",
+            (int(raw_number),),
+        ).fetchone()
+
+    if not student:
+        return jsonify({"success": False, "message": f"Student '{raw_number}' not found in roster."}), 404
+
+    existing = database.execute(
+        "SELECT status FROM attendance WHERE student_id = ? AND attendance_date = ?",
+        (student["id"], today_str),
+    ).fetchone()
+
+    database.execute(
+        """INSERT INTO attendance (student_id, attendance_date, status) VALUES (?, ?, ?)
+           ON CONFLICT(student_id, attendance_date) DO UPDATE SET status = excluded.status""",
+        (student["id"], today_str, status),
+    )
+    database.commit()
+
+    return jsonify({
+        "success": True,
+        "student": {
+            "id": student["id"],
+            "name": student["name"],
+            "student_number": student["student_number"],
+            "class_name": student["class_name"],
+        },
+        "status": status,
+        "date": today_str,
+        "was_already_marked": bool(existing),
+        "previous_status": existing["status"] if existing else None,
+    })
+
+
+@app.route("/id-cards")
+@login_required
+def id_cards():
+    database = get_db()
+    classes = database.execute(
+        "SELECT DISTINCT class_name FROM students ORDER BY class_name"
+    ).fetchall()
+    class_list = [c["class_name"] for c in classes]
+
+    selected_class = request.args.get("class", "")
+    if selected_class and selected_class in class_list:
+        students = database.execute(
+            "SELECT * FROM students WHERE class_name = ? ORDER BY name COLLATE NOCASE",
+            (selected_class,),
+        ).fetchall()
+    else:
+        selected_class = ""
+        students = database.execute(
+            "SELECT * FROM students ORDER BY class_name, name COLLATE NOCASE"
+        ).fetchall()
+
+    return render_template(
+        "id_cards.html",
+        active="id_cards",
+        students=students,
+        class_list=class_list,
+        selected_class=selected_class,
     )
 
 
